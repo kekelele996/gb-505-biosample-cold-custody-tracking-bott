@@ -119,3 +119,22 @@ func TestAuditEntryHashDetectsMutation(t *testing.T) {
 		t.Fatal("mutated audit entry must fail integrity check")
 	}
 }
+
+func TestAuditEntryHashSurvivesPostgresMicrosecondRoundTrip(t *testing.T) {
+	entry := AuditLog{
+		CreatedAt: time.Now().UTC(), RequestID: "req-002", ActorID: 3, ActorName: "保管员",
+		Action: "custody_transfer.accepted", EntityType: "CustodyTransfer", EntityID: 11,
+		BeforeState: "{}", AfterState: "{}", BeforeLocation: "intake", AfterLocation: "B 区",
+		BeforeCustodian: "接收员", AfterCustodian: "保管员", IPAddress: "127.0.0.1",
+	}
+	entry.Seal("")
+	// 模拟 PostgreSQL 持久化往返：pgx 将时间戳截断到微秒。
+	reloaded := entry
+	reloaded.CreatedAt = entry.CreatedAt.Truncate(time.Microsecond)
+	if !reloaded.IntegrityValid() {
+		t.Fatal("audit entry hash must survive microsecond-precision persistence")
+	}
+	if reloaded.EntryHash != entry.EntryHash {
+		t.Fatal("persistence round trip must not change the entry hash")
+	}
+}

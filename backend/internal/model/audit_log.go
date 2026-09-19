@@ -53,7 +53,9 @@ func (a AuditLog) calculateHash() string {
 	payload := fmt.Sprintf(
 		"%s|%d|%s|%d|%s|%s|%s|%d|%s|%s|%s|%s|%s|%s|%s",
 		a.PreviousHash,
-		a.CreatedAt.UTC().UnixNano(),
+		// PostgreSQL 时间戳精度为微秒（pgx 写入时截断纳秒），
+		// 哈希域统一截断到微秒，保证落库前后、重启回读后摘要一致。
+		a.CreatedAt.UTC().Truncate(time.Microsecond).UnixNano(),
 		a.RequestID,
 		a.ActorID,
 		a.ActorName,
